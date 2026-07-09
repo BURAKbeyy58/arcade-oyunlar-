@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Siber Arena Pro</title>
+    <style>
+        body { margin: 0; background: #050505; color: #00f0ff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        canvas { border: 4px solid #fff; background: #000; box-shadow: 0 0 20px #00f0ff; }
+    </style>
+</head>
+<body>
+    <div id="ui">SKOR: <span id="score">0</span> | REKOR: <span id="highScore">0</span></div>
+    <canvas id="gameCanvas" width="600" height="600"></canvas>
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        let score = 0, highScore = localStorage.getItem("siberArenaRekor") || 0;
+        document.getElementById("highScore").innerText = highScore;
+
+        let player = { x: 300, y: 300, dx: 0, dy: 0, trail: [] };
+        let target = { x: 100, y: 100 };
+        let speed = 4;
+
+        function gameLoop() {
+            ctx.fillStyle = "rgba(0,0,0,0.2)";
+            ctx.fillRect(0, 0, 600, 600);
+
+            // İz bırakma
+            player.trail.push({x: player.x, y: player.y});
+            player.x += player.dx * speed; player.y += player.dy * speed;
+
+            // Çarpışma (Duvar veya İz)
+            if (player.x < 0 || player.x > 600 || player.y < 0 || player.y > 600) location.reload();
+            
+            // Çizimler
+            ctx.fillStyle = "#2ed573";
+            player.trail.forEach(t => ctx.fillRect(t.x, t.y, 10, 10));
+            ctx.fillStyle = "#ff4757";
+            ctx.fillRect(target.x, target.y, 20, 20);
+            ctx.fillStyle = "white";
+            ctx.fillText("SEN", player.x, player.y - 5);
+
+            // Hedef Yakalama
+            if (Math.abs(player.x - target.x) < 20 && Math.abs(player.y - target.y) < 20) {
+                score++;
+                speed += 0.2; // Her hedefte hızlan
+                target.x = Math.random() * 550; target.y = Math.random() * 550;
+                document.getElementById("score").innerText = score;
+                if(score > highScore) { highScore = score; localStorage.setItem("siberArenaRekor", highScore); document.getElementById("highScore").innerText = highScore; }
+            }
+            requestAnimationFrame(gameLoop);
+        }
+
+        window.addEventListener("keydown", e => {
+            if(e.key=="ArrowUp") {player.dx=0; player.dy=-1;}
+            if(e.key=="ArrowDown") {player.dx=0; player.dy=1;}
+            if(e.key=="ArrowLeft") {player.dx=-1; player.dy=0;}
+            if(e.key=="ArrowRight") {player.dx=1; player.dy=0;}
+        });
+        gameLoop();
+    </script>
+</body>
+</html>

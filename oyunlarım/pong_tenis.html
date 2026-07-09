@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Siber Pong - Masa Tenisi</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #06060c;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+        #ui {
+            margin-bottom: 15px;
+            font-size: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 10px 30px;
+            border-radius: 20px;
+            border: 1px solid #00d2d3;
+            display: flex;
+            gap: 40px;
+        }
+        .stat-box { font-weight: bold; }
+        #gameCanvas {
+            border: 3px solid #00d2d3;
+            background-color: #0b0b14;
+            border-radius: 12px;
+            box-shadow: 0 0 30px rgba(0, 210, 211, 0.2);
+        }
+        #restartBtn {
+            display: none;
+            margin-top: 15px;
+            padding: 12px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #00d2d3, #00a8ff);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0, 210, 211, 0.4);
+            transition: 0.2s;
+        }
+        #restartBtn:hover { transform: scale(1.05); }
+        #info { margin-top: 10px; color: #666; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        <div class="stat-box" style="color: #00d2d3;">SEN: <span id="playerScore">0</span></div>
+        <div class="stat-box" style="color: #ff4757;">BOT: <span id="aiScore">0</span></div>
+    </div>
+    
+    <canvas id="gameCanvas" width="500" height="400"></canvas>
+    
+    <button id="restartBtn" onclick="resetGame()">Yeniden Başla</button>
+    <div id="info">Hareket etmek için <b>YUKARI / AŞAĞI</b> yön tuşlarını kullan!</div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const playerScoreElement = document.getElementById("playerScore");
+        const aiScoreElement = document.getElementById("aiScore");
+        const restartBtn = document.getElementById("restartBtn");
+
+        let playerScore = 0;
+        let aiScore = 0;
+        let isGameOver = false;
+        let gameInterval;
+
+        // --- Top (Ball) ---
+        let ball = {
+            x: 250,
+            y: 200,
+            radius: 7,
+            speed: 4,
+            dx: 4,
+            dy: 4,
+            color: "#ffffff"
+        };
+
+        // --- Çubuklar (Paddles) ---
+        const paddleWidth = 10;
+        const paddleHeight = 80;
+
+        let player = {
+            x: 10,
+            y: 160,
+            score: 0,
+            color: "#00d2d3"
+        };
+
+        let ai = {
+            x: canvas.width - 20,
+            y: 160,
+            score: 0,
+            speed: 3.5, // Botun zorluk seviyesi
+            color: "#ff4757"
+        };
+
+        // Klavye dinleme
+        let upPressed = false;
+        let downPressed = false;
+        window.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowUp") upPressed = true;
+            if (e.key === "ArrowDown") downPressed = true;
+        });
+        window.addEventListener("keyup", (e) => {
+            if (e.key === "ArrowUp") upPressed = false;
+            if (e.key === "ArrowDown") downPressed = false;
+        });
+
+        // Topu rastgele yönlendirerek sıfırlama
+        function ballReset() {
+            ball.x = canvas.width / 2;
+            ball.y = canvas.height / 2;
+            ball.speed = 4;
+            
+            // Gerçek rastgele yön seçimi
+            let angle = (Math.random() * (Math.PI / 4)) - (Math.PI / 8); // -22.5 ile +22.5 derece arası açılar
+            ball.dx = (Math.random() < 0.5 ? -1 : 1) * ball.speed * Math.cos(angle);
+            ball.dy = ball.speed * Math.sin(angle);
+        }
+
+        function update() {
+            if (isGameOver) return;
+
+            // Oyuncuyu hareket ettir
+            if (upPressed && player.y > 0) player.y -= 6;
+            if (downPressed && player.y < canvas.height - paddleHeight) player.y += 6;
+
+            // Basit Yapay Zeka (Bot topu takip ediyor)
+            let aiTarget = ball.y - (paddleHeight / 2);
+            if (ai.y < aiTarget && ai.y < canvas.height - paddleHeight) {
+                ai.y += ai.speed;
+            } else if (ai.y > aiTarget && ai.y > 0) {
+                ai.y -= ai.speed;
+            }
+
+            // Topu yürüt
+            ball.x += ball.dx;
+            ball.y += ball.dy;
+
+            // Üst ve alt duvarlardan sekme
+            if (ball.y + ball.radius > canvas.height || ball.y - ball.radius < 0) {
+                ball.dy = -ball.dy;
+            }
+
+            // Topun hangi çubuğa gittiğini seçme (Çarpışma testi)
+            let targetPaddle = (ball.x < canvas.width / 2) ? player : ai;
+
+            if (
+                ball.x - ball.radius < targetPaddle.x + paddleWidth &&
+                ball.x + ball.radius > targetPaddle.x &&
+                ball.y + ball.radius > targetPaddle.y &&
+                ball.y - ball.radius < targetPaddle.y + paddleHeight
+            ) {
+                // Çubuğa çarpınca açıyı değiştirme
+                let collidePoint = ball.y - (targetPaddle.y + paddleHeight / 2);
+                collidePoint = collidePoint / (paddleHeight / 2);
+                let angleRad = collidePoint * (Math.PI / 4);
+
+                let direction = (ball.x < canvas.width / 2) ? 1 : -1;
+                ball.speed += 0.5; // Her vuruşta top hızlansın!
+                ball.dx = direction * ball.speed * Math.cos(angleRad);
+                ball.dy = ball.speed * Math.sin(angleRad);
+            }
+
+            // Sayı Kontrolü (Sol veya sağ duvara değdi mi?)
+            if (ball.x - ball.radius < 0) {
+                aiScore++;
+                aiScoreElement.innerText = aiScore;
+                checkScores();
+                if (!isGameOver) ballReset();
+            } else if (ball.x + ball.radius > canvas.width) {
+                playerScore++;
+                playerScoreElement.innerText = playerScore;
+                checkScores();
+                if (!isGameOver) ballReset();
+            }
+        }
+
+        function checkScores() {
+            // İlk 5 puana ulaşan kazanır
+            if (playerScore === 5) {
+                endGame(true);
+            } else if (aiScore === 5) {
+                endGame(false);
+            }
+        }
+
+        // Ortadaki kesikli çizgiyi çizme
+        function drawNet() {
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
+            ctx.lineWidth = 2;
+            ctx.setLineDash([10, 10]);
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 2, 0);
+            ctx.lineTo(canvas.width / 2, canvas.height);
+            ctx.stroke();
+            ctx.setLineDash([]); // Çizgiyi sıfırla
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            drawNet();
+
+            // Oyuncu Çubuğu
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = player.color;
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y, paddleWidth, paddleHeight);
+
+            // Bot Çubuğu
+            ctx.shadowColor = ai.color;
+            ctx.fillStyle = ai.color;
+            ctx.fillRect(ai.x, ai.y, paddleWidth, paddleHeight);
+
+            // Top
+            ctx.shadowColor = ball.color;
+            ctx.fillStyle = ball.color;
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.closePath();
+
+            ctx.shadowBlur = 0;
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+        }
+
+        function endGame(playerWon) {
+            isGameOver = true;
+            clearInterval(gameInterval);
+            restartBtn.style.display = "block";
+
+            ctx.fillStyle = "rgba(6, 6, 12, 0.9)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (playerWon) {
+                ctx.fillStyle = "#00d2d3";
+                ctx.font = "bold 40px sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText("HARİKASIN!", canvas.width / 2, canvas.height / 2 - 15);
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "18px sans-serif";
+                ctx.fillText("Yapay zekayı bozguna uğrattın!", canvas.width / 2, canvas.height / 2 + 25);
+            } else {
+                ctx.fillStyle = "#ff4757";
+                ctx.font = "bold 32px sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText("BOT KAZANDI!", canvas.width / 2, canvas.height / 2 - 15);
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "18px sans-serif";
+                ctx.fillText("Pes etmek yok, tekrar dene!", canvas.width / 2, canvas.height / 2 + 25);
+            }
+        }
+
+        function resetGame() {
+            playerScore = 0;
+            aiScore = 0;
+            isGameOver = false;
+            playerScoreElement.innerText = playerScore;
+            aiScoreElement.innerText = aiScore;
+            player.y = 160;
+            ai.y = 160;
+            restartBtn.style.display = "none";
+            ballReset();
+            gameInterval = setInterval(gameLoop, 1000 / 60);
+        }
+
+        resetGame();
+    </script>
+</body>
+</html>

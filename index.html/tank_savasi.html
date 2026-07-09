@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>2 Oyuncu - Siber Tank Savaşı</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #05050a;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+        #ui {
+            margin-bottom: 15px;
+            font-size: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 10px 30px;
+            border-radius: 20px;
+            border: 1px solid #ff007f;
+            display: flex;
+            gap: 40px;
+        }
+        .stat-box { font-weight: bold; }
+        #gameCanvas {
+            border: 3px solid #ff007f;
+            background-color: #0b0b14;
+            border-radius: 12px;
+            box-shadow: 0 0 30px rgba(255, 0, 127, 0.2);
+        }
+        #restartBtn {
+            display: none;
+            margin-top: 15px;
+            padding: 12px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #ff007f, #ff007f);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(255, 0, 127, 0.4);
+            transition: 0.2s;
+        }
+        #restartBtn:hover { transform: scale(1.05); }
+        #info { margin-top: 10px; color: #666; font-size: 14px; text-align: center; line-height: 1.5; }
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        <div class="stat-box" style="color: #2ed573;">P1 (YEŞİL): <span id="p1Score">0</span></div>
+        <div class="stat-box" style="color: #00d2d3;">P2 (MAVİ): <span id="p2Score">0</span></div>
+    </div>
+    
+    <canvas id="gameCanvas" width="600" height="400"></canvas>
+    
+    <button id="restartBtn" onclick="resetGame()">Yeniden Başla</button>
+    <div id="info">
+        <b>P1 (Yeşil):</b> WASD ile hareket, SPACE ile Ateş | 
+        <b>P2 (Mavi):</b> Yön Tuşları ile hareket, ENTER ile Ateş
+    </div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const p1ScoreElement = document.getElementById("p1Score");
+        const p2ScoreElement = document.getElementById("p2Score");
+        const restartBtn = document.getElementById("restartBtn");
+
+        let p1Score = 0;
+        let p2Score = 0;
+        let isGameOver = false;
+        let gameInterval;
+
+        // Tuş takibi
+        let keys = {};
+        window.addEventListener("keydown", (e) => { keys[e.code] = true; handleShooting(e); });
+        window.addEventListener("keyup", (e) => { keys[e.code] = false; });
+
+        // --- TANKLAR ---
+        let tank1 = { x: 50, y: 200, size: 25, color: "#2ed573", lastDir: "KeyD" };  // P1 Yeşil
+        let tank2 = { x: 525, y: 200, size: 25, color: "#00d2d3", lastDir: "ArrowLeft" }; // P2 Mavi
+
+        // --- MERMİLER ---
+        let bullets = [];
+
+        function handleShooting(e) {
+            if (isGameOver) return;
+            
+            // P1 Ateş (Space)
+            if (e.code === "Space") {
+                fireBullet(tank1);
+            }
+            // P2 Ateş (Enter)
+            if (e.code === "Enter") {
+                fireBullet(tank2);
+            }
+        }
+
+        function fireBullet(tank) {
+            let bDx = 0;
+            let bDy = 0;
+            const bSpeed = 6;
+
+            // Tankın en son baktığı yöne göre mermi fırlat
+            if (tank.lastDir === "KeyW" || tank.lastDir === "ArrowUp")    bDy = -bSpeed;
+            if (tank.lastDir === "KeyS" || tank.lastDir === "ArrowDown")  bDy = bSpeed;
+            if (tank.lastDir === "KeyA" || tank.lastDir === "ArrowLeft")  bDx = -bSpeed;
+            if (tank.lastDir === "KeyD" || tank.lastDir === "ArrowRight") bDx = bSpeed;
+
+            bullets.push({
+                x: tank.x + tank.size / 2,
+                y: tank.y + tank.size / 2,
+                dx: bDx,
+                dy: bDy,
+                owner: tank
+            });
+        }
+
+        function roundReset() {
+            // Tankları başlangıç pozisyonuna al ama bakış yönlerini sıfırla
+            tank1.x = 50;
+            tank1.y = Math.floor(Math.random() * (canvas.height - 100)) + 50; // Farklı konumlarda başlasınlar diye rastgelelik
+            tank2.x = 525;
+            tank2.y = Math.floor(Math.random() * (canvas.height - 100)) + 50;
+
+            // Rastgele yön ataması (Top veya tank yönü gibi)
+            tank1.lastDir = Math.random() < 0.5 ? "KeyD" : "KeyW";
+            tank2.lastDir = Math.random() < 0.5 ? "ArrowLeft" : "ArrowUp";
+
+            bullets = [];
+        }
+
+        function update() {
+            if (isGameOver) return;
+
+            // --- TANK 1 HAREKET (WASD) ---
+            if (keys["KeyW"] && tank1.y > 0) { tank1.y -= 3; tank1.lastDir = "KeyW"; }
+            if (keys["KeyS"] && tank1.y < canvas.height - tank1.size) { tank1.y += 3; tank1.lastDir = "KeyS"; }
+            if (keys["KeyA"] && tank1.x > 0) { tank1.x -= 3; tank1.lastDir = "KeyA"; }
+            if (keys["KeyD"] && tank1.x < canvas.width - tank1.size) { tank1.x += 3; tank1.lastDir = "KeyD"; }
+
+            // --- TANK 2 HAREKET (YÖN TUŞLARI) ---
+            if (keys["ArrowUp"] && tank2.y > 0) { tank2.y -= 3; tank2.lastDir = "ArrowUp"; }
+            if (keys["ArrowDown"] && tank2.y < canvas.height - tank2.size) { tank2.y += 3; tank2.lastDir = "ArrowDown"; }
+            if (keys["ArrowLeft"] && tank2.x > 0) { tank2.x -= 3; tank2.lastDir = "ArrowLeft"; }
+            if (keys["ArrowRight"] && tank2.x < canvas.width - tank2.size) { tank2.x += 3; tank2.lastDir = "ArrowRight"; }
+
+            // --- MERMİLERİ YÜRÜT VE ÇARPIŞMA KONTROLÜ ---
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                bullets[i].x += bullets[i].dx;
+                bullets[i].y += bullets[i].dy;
+
+                // Ekrandan çıkan mermileri sil
+                if (bullets[i].x < 0 || bullets[i].x > canvas.width || bullets[i].y < 0 || bullets[i].y > canvas.height) {
+                    bullets.splice(i, 1);
+                    continue;
+                }
+
+                // Tank 1'i vurdu mu?
+                if (
+                    bullets[i].owner !== tank1 &&
+                    bullets[i].x > tank1.x && bullets[i].x < tank1.x + tank1.size &&
+                    bullets[i].y > tank1.y && bullets[i].y < tank1.y + tank1.size
+                ) {
+                    p2Score++;
+                    p2ScoreElement.innerText = p2Score;
+                    bullets.splice(i, 1);
+                    checkWin();
+                    if (!isGameOver) roundReset();
+                    continue;
+                }
+
+                // Tank 2'yi vurdu mu?
+                if (
+                    bullets[i].owner !== tank2 &&
+                    bullets[i].x > tank2.x && bullets[i].x < tank2.x + tank2.size &&
+                    bullets[i].y > tank2.y && bullets[i].y < tank2.y + tank2.size
+                ) {
+                    p1Score++;
+                    p1ScoreElement.innerText = p1Score;
+                    bullets.splice(i, 1);
+                    checkWin();
+                    if (!isGameOver) roundReset();
+                    continue;
+                }
+            }
+        }
+
+        function checkWin() {
+            if (p1Score === 5) {
+                endGame("OYUNCU 1 (YEŞİL)");
+            } else if (p2Score === 5) {
+                endGame("OYUNCU 2 (MAVİ)");
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Tank 1 Çiz (Yeşil Neon)
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = tank1.color;
+            ctx.fillStyle = tank1.color;
+            ctx.fillRect(tank1.x, tank1.y, tank1.size, tank1.size);
+            // Tank 1 Namlu Çizimi
+            ctx.fillStyle = "#ffffff";
+            if (tank1.lastDir === "KeyW") ctx.fillRect(tank1.x + 10, tank1.y - 8, 5, 8);
+            if (tank1.lastDir === "KeyS") ctx.fillRect(tank1.x + 10, tank1.y + tank1.size, 5, 8);
+            if (tank1.lastDir === "KeyA") ctx.fillRect(tank1.x - 8, tank1.y + 10, 8, 5);
+            if (tank1.lastDir === "KeyD") ctx.fillRect(tank1.x + tank1.size, tank1.y + 10, 8, 5);
+
+            // Tank 2 Çiz (Mavi Neon)
+            ctx.shadowColor = tank2.color;
+            ctx.fillStyle = tank2.color;
+            ctx.fillRect(tank2.x, tank2.y, tank2.size, tank2.size);
+            // Tank 2 Namlu Çizimi
+            ctx.fillStyle = "#ffffff";
+            if (tank2.lastDir === "ArrowUp")    ctx.fillRect(tank2.x + 10, tank2.y - 8, 5, 8);
+            if (tank2.lastDir === "ArrowDown")  ctx.fillRect(tank2.x + 10, tank2.y + tank2.size, 5, 8);
+            if (tank2.lastDir === "ArrowLeft")  ctx.fillRect(tank2.x - 8, tank2.y + 10, 8, 5);
+            if (tank2.lastDir === "ArrowRight") ctx.fillRect(tank2.x + tank2.size, tank2.y + 10, 8, 5);
+
+            // Mermileri Çiz
+            ctx.shadowColor = "#ff4757";
+            ctx.fillStyle = "#ff4757";
+            for (let b of bullets) {
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.shadowBlur = 0;
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+        }
+
+        function endGame(winnerName) {
+            isGameOver = true;
+            clearInterval(gameInterval);
+            restartBtn.style.display = "block";
+
+            ctx.fillStyle = "rgba(5, 5, 10, 0.9)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = "#2ed573";
+            ctx.font = "bold 42px sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText("HARİKASIN!", canvas.width / 2, canvas.height / 2 - 20);
+            
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "20px sans-serif";
+            ctx.fillText(winnerName + " MAÇI KAZANDI!", canvas.width / 2, canvas.height / 2 + 25);
+        }
+
+        function resetGame() {
+            p1Score = 0;
+            p2Score = 0;
+            isGameOver = false;
+            p1ScoreElement.innerText = p1Score;
+            p2ScoreElement.innerText = p2Score;
+            restartBtn.style.display = "none";
+            roundReset();
+            gameInterval = setInterval(gameLoop, 1000 / 60);
+        }
+
+        resetGame();
+    </script>
+</body>
+</html>

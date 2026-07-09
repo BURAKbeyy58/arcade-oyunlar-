@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>2 Oyuncu - Siber Uzay Savaşı (Düzeltildi)</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #020205;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+        #ui {
+            width: 550px;
+            margin-bottom: 15px;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 12px;
+            border-radius: 15px;
+            border: 2px solid #00f0ff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .player-panel { display: flex; flex-direction: column; gap: 5px; }
+        .hp-container {
+            width: 120px;
+            height: 12px;
+            background-color: #222;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid #444;
+        }
+        .hp-bar { height: 100%; width: 100%; transition: width 0.1s; }
+        #p1Hp { background-color: #2ed573; }
+        #p2Hp { background-color: #00a8ff; }
+        .score { font-size: 16px; font-weight: bold; }
+        #gameCanvas {
+            border: 3px solid #00f0ff;
+            background-color: #050510;
+            border-radius: 12px;
+            box-shadow: 0 0 30px rgba(0, 240, 255, 0.2);
+        }
+        #restartBtn {
+            display: none;
+            margin-top: 15px;
+            padding: 12px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #00f0ff, #00a8ff);
+            color: #020205;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0, 240, 255, 0.4);
+        }
+        #restartBtn:hover { transform: scale(1.05); }
+        #info { margin-top: 10px; color: #555; font-size: 13px; text-align: center; }
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        <div class="player-panel">
+            <span style="color: #2ed573; font-weight: bold;">P1 (YEŞİL)</span>
+            <div class="hp-container"><div id="p1Hp" class="hp-bar"></div></div>
+            <span class="score" style="color: #2ed573;">Skor: <span id="p1ScoreText">0</span></span>
+        </div>
+        <div style="font-size: 24px; font-weight: bold; color: #00f0ff; letter-spacing: 2px;">CO-OP DEFENSER</div>
+        <div class="player-panel" style="text-align: right; align-items: flex-end;">
+            <span style="color: #00a8ff; font-weight: bold;">P2 (MAVİ)</span>
+            <div class="hp-container"><div id="p2Hp" class="hp-bar"></div></div>
+            <span class="score" style="color: #00a8ff;">Skor: <span id="p2ScoreText">0</span></span>
+        </div>
+    </div>
+    
+    <canvas id="gameCanvas" width="600" height="450"></canvas>
+    
+    <button id="restartBtn" onclick="resetGame()">Yeniden Başla</button>
+    <div id="info">
+        <b>P1:</b> A-D ile Hareket, SPACE ile Ateş | <b>P2:</b> Sağ-Sol Ok ile Hareket, ENTER ile Ateş
+    </div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const restartBtn = document.getElementById("restartBtn");
+
+        let isGameOver = false;
+        let gameInterval;
+
+        let keys = {};
+        window.addEventListener("keydown", (e) => { keys[e.code] = true; handleShooting(e); });
+        window.addEventListener("keyup", (e) => { keys[e.code] = false; });
+
+        // Gemiler
+        let p1 = { x: 150, y: 400, w: 35, h: 20, hp: 100, score: 0, color: "#2ed573", active: true };
+        let p2 = { x: 400, y: 400, w: 35, h: 20, hp: 100, score: 0, color: "#00a8ff", active: true };
+
+        let lasers = [];
+        let enemies = [];
+        let enemyTimer = 0;
+
+        function handleShooting(e) {
+            if (isGameOver) return;
+            if (e.code === "Space" && p1.active) {
+                lasers.push({ x: p1.x + p1.w / 2, y: p1.y, dy: -6, color: p1.color, owner: p1 });
+            }
+            if (e.code === "Enter" && p2.active) {
+                lasers.push({ x: p2.x + p2.w / 2, y: p2.y, dy: -6, color: p2.color, owner: p2 });
+            }
+        }
+
+        function update() {
+            if (isGameOver) return;
+
+            // P1 Hareket (A-D) -> Boşluk düzeltildi
+            if (p1.active) {
+                if (keys["KeyA"] && p1.x > 0) p1.x -= 4;
+                if (keys["KeyD"] && p1.x < canvas.width - p1.w) p1.x += 4;
+            }
+
+            // P2 Hareket (Yön Tuşları)
+            if (p2.active) {
+                if (keys["ArrowLeft"] && p2.x > 0) p2.x -= 4;
+                if (keys["ArrowRight"] && p2.x < canvas.width - p2.w) p2.x += 4;
+            }
+
+            // Lazerleri Yürüt
+            for (let i = lasers.length - 1; i >= 0; i--) {
+                lasers[i].y += lasers[i].dy;
+                if (lasers[i].y < 0) {
+                    lasers.splice(i, 1);
+                }
+            }
+
+            // Meteor Üretimi
+            enemyTimer++;
+            if (enemyTimer % 45 === 0) {
+                let size = Math.floor(Math.random() * 25) + 15;
+                enemies.push({
+                    x: Math.random() * (canvas.width - size),
+                    y: -size,
+                    size: size,
+                    speed: (Math.random() * 2.5) + 1.5
+                });
+            }
+
+            // Meteorları Yürüt ve Çarpmaları Kontrol Et
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                enemies[i].y += enemies[i].speed;
+
+                if (enemies[i].y > canvas.height) {
+                    enemies.splice(i, 1);
+                    continue;
+                }
+
+                if (p1.active && checkQuadCollision(enemies[i], p1)) {
+                    p1.hp -= 20;
+                    if (p1.hp <= 0) { p1.hp = 0; p1.active = false; }
+                    document.getElementById("p1Hp").style.width = p1.hp + "%";
+                    enemies.splice(i, 1);
+                    checkGameEnd();
+                    continue;
+                }
+
+                if (p2.active && checkQuadCollision(enemies[i], p2)) {
+                    p2.hp -= 20;
+                    if (p2.hp <= 0) { p2.hp = 0; p2.active = false; }
+                    document.getElementById("p2Hp").style.width = p2.hp + "%";
+                    enemies.splice(i, 1);
+                    checkGameEnd();
+                    continue;
+                }
+
+                for (let j = lasers.length - 1; j >= 0; j--) {
+                    if (
+                        lasers[j].x > enemies[i].x && lasers[j].x < enemies[i].x + enemies[i].size &&
+                        lasers[j].y > enemies[i].y && lasers[j].y < enemies[i].y + enemies[i].size
+                    ) {
+                        lasers[j].owner.score += 10;
+                        document.getElementById("p1ScoreText").innerText = p1.score;
+                        document.getElementById("p2ScoreText").innerText = p2.score;
+                        
+                        enemies.splice(i, 1);
+                        lasers.splice(j, 1);
+                        break;
+                    }
+                }
+            }
+        }
+
+        function checkQuadCollision(enemy, player) {
+            return (
+                enemy.x < player.x + player.w &&
+                enemy.x + enemy.size > player.x &&
+                enemy.y < player.y + player.h &&
+                enemy.y + enemy.size > player.y
+            );
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Arka Plan Yıldızları
+            ctx.fillStyle = "rgba(255, 255, 255, 0.05)";
+            for (let i = 0; i < 20; i++) {
+                ctx.fillRect((i * 35) % canvas.width, (i * 75) % canvas.height, 2, 2);
+            }
+
+            // P1 Gemi
+            if (p1.active) {
+                ctx.shadowBlur = 12;
+                ctx.shadowColor = p1.color;
+                ctx.fillStyle = p1.color;
+                ctx.fillRect(p1.x, p1.y, p1.w, p1.h);
+                ctx.fillRect(p1.x + p1.w/2 - 4, p1.y - 6, 8, 6);
+            }
+
+            // P2 Gemi
+            if (p2.active) {
+                ctx.shadowBlur = 12;
+                ctx.shadowColor = p2.color;
+                ctx.fillStyle = p2.color;
+                ctx.fillRect(p2.x, p2.y, p2.w, p2.h);
+                ctx.fillRect(p2.x + p2.w/2 - 4, p2.y - 6, 8, 6);
+            }
+
+            // Lazerler
+            for (let l of lasers) {
+                ctx.shadowColor = l.color;
+                ctx.fillStyle = l.color;
+                ctx.fillRect(l.x - 2, l.y, 4, 12);
+            }
+
+            // Meteorlar
+            ctx.shadowColor = "#ff7f50";
+            ctx.fillStyle = "#ff7f50";
+            for (let e of enemies) {
+                ctx.fillRect(e.x, e.y, e.size, e.size);
+            }
+
+            ctx.shadowBlur = 0;
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+        }
+
+        function checkGameEnd() {
+            if (!p1.active && !p2.active) {
+                isGameOver = true;
+                clearInterval(gameInterval);
+                restartBtn.style.display = "block";
+
+                ctx.fillStyle = "rgba(2, 2, 5, 0.95)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = "#00f0ff";
+                ctx.font = "bold 40px sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText("HARİKASIN!", canvas.width / 2, canvas.height / 2 - 20);
+                
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "18px sans-serif";
+                ctx.fillText("P1 Skor: " + p1.score + "  |  P2 Skor: " + p2.score, canvas.width / 2, canvas.height / 2 + 20);
+                ctx.font = "14px sans-serif";
+                ctx.fillStyle = "#888";
+                ctx.fillText("Dünyayı başarıyla savundunuz!", canvas.width / 2, canvas.height / 2 + 50);
+            }
+        }
+
+        function resetGame() {
+            isGameOver = false;
+            enemyTimer = 0;
+            lasers = [];
+            enemies = [];
+            
+            p1.x = 150; p1.hp = 100; p1.score = 0; p1.active = true;
+            p2.x = 400; p2.hp = 100; p2.score = 0; p2.active = true;
+
+            document.getElementById("p1Hp").style.width = "100%";
+            document.getElementById("p2Hp").style.width = "100%";
+            document.getElementById("p1ScoreText").innerText = "0";
+            document.getElementById("p2ScoreText").innerText = "0";
+            
+            restartBtn.style.display = "none";
+            gameInterval = setInterval(gameLoop, 1000 / 60);
+        }
+
+        resetGame();
+    </script>
+</body>
+</html>

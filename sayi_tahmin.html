@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Siber Sayı Tahmin Robotu</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0d0d1a;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+        #gameContainer {
+            background: rgba(20, 20, 35, 0.9);
+            border: 3px solid #ffa502;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 0 25px rgba(255, 165, 2, 0.2);
+            text-align: center;
+            width: 350px;
+        }
+        h2 {
+            color: #ffa502;
+            margin-top: 0;
+            text-shadow: 0 0 10px rgba(255, 165, 2, 0.3);
+        }
+        input {
+            width: 80px;
+            padding: 10px;
+            font-size: 18px;
+            text-align: center;
+            border-radius: 8px;
+            border: 2px solid #3d3d5c;
+            background-color: #1a1a2e;
+            color: white;
+            outline: none;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #ffa502, #ff7f50);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-left: 10px;
+            box-shadow: 0 4px 10px rgba(255, 165, 2, 0.3);
+        }
+        button:hover {
+            transform: scale(1.02);
+        }
+        #message {
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: bold;
+            min-height: 25px;
+        }
+        #stats {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #a4b0be;
+        }
+        #restartBtn {
+            display: none;
+            margin: 20px auto 0 auto;
+            background: linear-gradient(135deg, #2ed573, #1e90ff);
+            box-shadow: 0 4px 10px rgba(46, 213, 115, 0.3);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="gameContainer">
+        <h2>Siber Tahmin</h2>
+        <p>1 ile 100 arasında gizli bir sayı tuttum. Bakalım 7 hakkında bulabilecek misin?</p>
+        
+        <div id="inputArea">
+            <input type="number" id="userGuess" min="1" max="100" placeholder="0">
+            <button onclick="checkGuess()">Tahmin Et</button>
+        </div>
+
+        <div id="message">Oyuna Başla!</div>
+        
+        <div id="stats">
+            Kalan Hak: <span id="attempts" style="color: #ff4757; font-weight: bold;">7</span>
+        </div>
+
+        <button id="restartBtn" onclick="initGame()">Yeniden Başla</button>
+    </div>
+
+    <script>
+        let secretNumber;
+        let attemptsLeft;
+        let isGameOver = false;
+
+        const guessInput = document.getElementById("userGuess");
+        const messageElement = document.getElementById("message");
+        const attemptsElement = document.getElementById("attempts");
+        const restartBtn = document.getElementById("restartBtn");
+        const inputArea = document.getElementById("inputArea");
+
+        function initGame() {
+            secretNumber = Math.floor(Math.random() * 100) + 1; // 1-100 arası
+            attemptsLeft = 7;
+            isGameOver = false;
+            
+            messageElement.innerText = "İlk tahminini yap bakalım!";
+            messageElement.style.color = "white";
+            attemptsElement.innerText = attemptsLeft;
+            guessInput.value = "";
+            
+            inputArea.style.display = "block";
+            restartBtn.style.display = "none";
+        }
+
+        function checkGuess() {
+            if (isGameOver) return;
+
+            let userGuess = parseInt(guessInput.value);
+
+            // Boş veya hatalı giriş kontrolü
+            if (isNaN(userGuess) || userGuess < 1 || userGuess > 100) {
+                messageElement.innerText = "Lütfen 1 ile 100 arası bir sayı gir!";
+                messageElement.style.color = "#ffa502";
+                return;
+            }
+
+            attemptsLeft--;
+            attemptsElement.innerText = attemptsLeft;
+
+            if (userGuess === secretNumber) {
+                messageElement.innerText = "🎉 Müthişsin! Doğru Bildin! Sayı: " + secretNumber;
+                messageElement.style.color = "#2ed573";
+                endGame();
+            } else if (attemptsLeft <= 0) {
+                messageElement.innerText = "💥 Hakların Bitti! Gizli sayı: " + secretNumber;
+                messageElement.style.color = "#ff4757";
+                endGame();
+            } else if (userGuess < secretNumber) {
+                messageElement.innerText = "📈 DAHA BÜYÜK bir sayı gir!";
+                messageElement.style.color = "#1e90ff";
+            } else if (userGuess > secretNumber) {
+                messageElement.innerText = "📉 DAHA KÜÇÜK bir sayı gir!";
+                messageElement.style.color = "#ff4757";
+            }
+
+            guessInput.value = "";
+            guessInput.focus();
+        }
+
+        function endGame() {
+            isGameOver = true;
+            inputArea.style.display = "none";
+            restartBtn.style.display = "block";
+        }
+
+        // Enter tuşuna basınca da tahmin etsin
+        guessInput.addEventListener("keyup", function(event) {
+            if (event.key === "Enter") {
+                checkGuess();
+            }
+        });
+
+        // Oyunu ilk kez çalıştır
+        initGame();
+    </script>
+</body>
+</html>
